@@ -28,7 +28,8 @@ df <-
 # Common Words ------------------------------------------------------------
 
 manual_removals = c("yolo", "iframe")
-stop_words <- bind_rows(tibble(word = manual_removals, lexicon = "manual"), stop_words)
+stop_words <- tibble(word = manual_removals, lexicon = "manual") %>% 
+    bind_rows(stop_words)
 
 common_words <- 
     df %>% 
@@ -101,11 +102,12 @@ bigrams_filtr %>%
     geom_edge_link(
         aes(edge_alpha = n), 
         show.legend = FALSE,
-        arrow = grid::arrow(type = "closed", length = unit(.15, "inches")),
-        end_cap = circle(.07, "inches")
+        arrow = grid::arrow(type = "open", length = unit(3, "mm")),
+        end_cap = circle(1, "mm"),
+        edge_colour = "navyblue"
         ) +
-    geom_node_point(color = "lightblue", size = 3) + 
-    geom_node_text(aes(label = name), vjust = 1, hjust = 1) + 
+    geom_node_point(col = "darkblue", size = 3) + 
+    geom_node_text(aes(label = name), vjust = 1, hjust = 1, family = "Menlo") + 
     theme_void(base_family = "Menlo")
 
 
