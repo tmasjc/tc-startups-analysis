@@ -8,26 +8,24 @@ old <- theme_set(theme_minimal(base_family = "Menlo"))
 
 # Load Data ---------------------------------------------------------------
 
+# raw json 
+raw <- readRDS("Data/sample.rds") 
 
-# first 20 pages only
-raw <- 
-    readRDS("data/sample.rds") %>% 
-    `[[`(1) %>% 
+# extract useful columns
+format_cols <- . %>%
     `[[`("body") %>% 
-    as_tibble()
-
-# eda data frame
-df <- 
-    raw %>%
+    as_tibble() %>% 
     # unlist and remove html tags
     mutate_at(vars("title", "content"), 
               ~ str_remove_all(.x[['rendered']], "<.*?>|\n|\\&#[0-9]{4}")) %>% 
     select(id, date, title, content, shortlink)
 
+# each page contains 20 articles
+df <- map_df(raw, format_cols)
 
 # Common Words ------------------------------------------------------------
 
-manual_removals = c("yolo", "iframe")
+manual_removals = c("company", "iframe", "techcrunch", "startups")
 stop_words <- tibble(word = manual_removals, lexicon = "manual") %>% 
     bind_rows(stop_words)
 
@@ -36,19 +34,18 @@ common_words <-
     select(id, content) %>% 
     unnest_tokens(word, content) %>% 
     anti_join(stop_words, by = "word")
-
+    
+# most freq words
 common_words %>% 
     count(word, sort = TRUE) %>% 
-    filter(n > 10, !word %in% manual_removals) %>%
+    top_n(50, n) %>% 
     mutate(word = reorder(word, n)) %>% 
     ggplot(aes(word, n)) + 
     geom_col(width = 0.3) + 
     coord_flip() + 
     labs(x = "", y = "Occurance")
 
-
 # TF-IDF ------------------------------------------------------------------
-
 
 common_terms <- df %>% 
     select(id, content) %>% 
@@ -96,7 +93,7 @@ bigrams_filtr %>%
 # in graph form
 bigrams_filtr %>% 
     count(word1, word2) %>% 
-    filter(n > 1) %>% 
+    filter(n > 5) %>% 
     graph_from_data_frame() %>% 
     ggraph(layout = "fr") + 
     geom_edge_link(
