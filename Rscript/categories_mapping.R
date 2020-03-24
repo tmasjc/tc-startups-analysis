@@ -1,21 +1,27 @@
 library(tidyverse)
 library(glue)
 library(jsonlite)
+library(progress)
 
 # extract categories' id
-ids <- 
-    readRDS("data/sample.rds") %>% 
-    `[[`(1) %>% 
-    `[[`(c("body", "categories")) %>% 
+ids <- readRDS("Data/sample.rds") %>% 
+    map(pluck, "body", "categories") %>% 
     unlist() %>% 
     unique()
 
 # fetch name by id via API
-obtain_category <- function(id) {
+obtain_category <- function(id, delay = 1) {
+    Sys.sleep(delay)
     url = glue("https://techcrunch.com/wp-json/wp/v2/categories/{id}")
     fromJSON(url)$name
 }
-cats <- tibble(id = ids, name = map_chr(ids, obtain_category))
+
+# execute
+pb   <- progress_bar$new(total = length(ids))
+cats <- purrr::map_chr(ids, ~ { pb$tick(); obtain_category(.x) })
+
+# clean up
+cats <- map_chr(cats, ~ str_replace(.x, "&amp;", "&"))
 
 # export
-write_json(cats, path = "Data/categories.json")
+write_json(tibble(id = ids, name = cats), path = "Data/categories.json")
