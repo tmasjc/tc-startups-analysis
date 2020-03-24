@@ -3,11 +3,15 @@ library(text2vec)
 library(stopwords)
 library(LDAvis)
 
+
+# Tidy Data ---------------------------------------------------------------
+
+
 # raw json 
 raw <- readRDS("Data/sample.rds") 
 
 # extract useful columns
-format_cols <- . %>%
+extract_texts <- . %>%
     `[[`("body") %>% 
     as_tibble() %>% 
     # unlist and remove html tags
@@ -16,7 +20,24 @@ format_cols <- . %>%
     select(id, date, title, content, shortlink)
 
 # each page contains 20 articles
-df <- map_df(raw, format_cols)
+df <- map_df(raw, extract_texts)
+
+# extract categories for each post 
+cats <- raw %>% 
+    map(pluck, "body", "categories") %>% 
+    purrr::flatten()
+names(cats) <- df$id
+
+# tag categories by name in tidy format
+cats <- cats %>% 
+    enframe(name = "id", value = "category") %>%
+    unnest_longer("category") %>% 
+    left_join(jsonlite::fromJSON("Data/categories.json"), 
+              by = c("category" = "id"))
+
+
+# Convert Text to Vector --------------------------------------------------
+
 
 # convert all to lowercase and remove numbers (123, 1,500, 0.5, 0.777)
 prep_func <- function(v) {
