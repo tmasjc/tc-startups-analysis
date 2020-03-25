@@ -2,6 +2,7 @@ library(tidyverse)
 library(widyr)
 library(igraph)
 library(ggraph)
+library(visNetwork)
 set.seed(1111)
 
 # raw json 
@@ -28,7 +29,7 @@ df <- cats %>%
     filter(name != "TC")
 
 # find pairwise correlation
-cors <- df %>% pairwise_cor(name, id, sort = TRUE, upper = TRUE)
+cors <- df %>% pairwise_cor(name, id, sort = TRUE, upper = FALSE)
 
 # network graph
 cors %>% 
@@ -59,6 +60,27 @@ cors %>%
     labs(
         x = "",
         y = "",
-        title = "Binary Correlation of Categories 'Advertising Tech'",
+        title = "Binary Correlation of Categories for 'Advertising Tech'",
         subtitle = "source: https://techcrunch.com/startups/"
     )
+
+# interactive via visNetwork
+nodes <- c(cors$item1, cors$item2) %>% 
+    unique() %>% 
+    sort() %>% 
+    data.frame(id = .) %>% 
+    mutate(title = paste("Cat:", id))
+
+edges <- cors %>% 
+    rename(from = item1, to = item2) %>% 
+    filter(abs(correlation) > 0.1) %>% 
+    mutate(title = paste("Phi:", prettyNum(correlation, digits = 2)),
+           width = correlation * 5,
+           color = ifelse(correlation > 0, "#708090", "#FF0000"))
+
+visNetwork(nodes, edges, width = "1600px", height = "800px") %>% 
+    visIgraphLayout(layout = "layout_in_circle") %>% 
+    visNodes(size = 20, color = "#696969") %>% 
+    visOptions(highlightNearest = list(enabled = T, hover = T), 
+               nodesIdSelection = T)
+
