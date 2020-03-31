@@ -2,7 +2,7 @@ library(tidyverse)
 library(text2vec)
 library(stopwords)
 library(LDAvis)
-
+set.seed(1212)
 
 # Tidy Data ---------------------------------------------------------------
 
@@ -22,19 +22,29 @@ extract_texts <- . %>%
 # each page contains 20 articles
 df <- map_df(raw, extract_texts)
 
-# extract categories for each post 
-cats <- raw %>% 
+# extract categories tags for each post 
+tags <- raw %>% 
     map(pluck, "body", "categories") %>% 
     purrr::flatten()
-names(cats) <- df$id
+names(tags) <- df$id
 
 # tag categories by name in tidy format
-cats <- cats %>% 
+tags <- tags %>% 
     enframe(name = "id", value = "category") %>%
     unnest_longer("category") %>% 
     left_join(jsonlite::fromJSON("Data/categories.json"), 
-              by = c("category" = "id"))
-
+              by = c("category" = "id")) %>% 
+    # ignore publisher/funding related
+    filter(
+        !name %in% c(
+            "Startups",
+            "TC",
+            "Extra Crunch",
+            "Recent Funding",
+            "Fundings & Exits",
+            "Funding"
+        )
+    )
 
 # Convert Text to Vector --------------------------------------------------
 
@@ -58,7 +68,7 @@ itokens <-
 vocabs <- 
     itokens %>%
     create_vocabulary(stopwords = stopwords(source = "stopwords-iso")) %>%
-    prune_vocabulary(term_count_min = 10, doc_proportion_max = 0.7)
+    prune_vocabulary(term_count_min = 30, doc_proportion_max = 0.7)
 vocabs
 
 # document-term matrix
@@ -68,7 +78,7 @@ dtm <-
     create_dtm(itokens, vectorizer = ., type = "dgTMatrix")
 
 # fit LDA model here
-fit <- LDA$new(n_topics = 25, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+fit <- LDA$new(n_topics = 16, doc_topic_prior = 0.8, topic_word_prior = 0.001)
 
 # distribution of topics in documents
 doc_topic_distr <-
@@ -80,6 +90,32 @@ doc_topic_distr <-
         progressbar = TRUE
     )
 
-# plot via LDAvis
-fit$plot()
+
+# Model Accessment ----------------------------------------------------------
+
+
+# assign predicted topic to id
+preds      <- apply(doc_topic_distr, 1, which.max)
+tidy_preds <- tibble(id = names(preds), topic = preds)
+
+split_by_topic <- tags %>% 
+    left_join(tidy_preds, by = "id") %>% 
+    group_split(topic)
+
+# via LDAvis
+fit$plot(reorder.topics = FALSE)
+
+# via frequent tags per topic
+split_by_topic %>% 
+    map_df( ~ {
+        count(.x, name, sort = TRUE) %>% 
+            top_n(n = 3, wt = n)
+    }, .id = "topic") %>% 
+    mutate(topic = factor(as.numeric(topic), ordered = TRUE)) %>% 
+    ggplot(aes(topic, n)) + 
+    geom_label(aes(label = name)) +
+    theme_minimal(base_family = "Menlo")
+    
+
+
 
